@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>倉庫塗料在庫確認</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+:root{
+  --bg:#F5F3EE;--sf:#FFF;--sf2:#F0EDE6;--bd:#DDD9D0;
+  --t1:#1A1814;--t2:#5C5951;--t3:#9C9A92;
+  --ac:#1D5C8A;--ac-bg:#EAF2FA;--ac-lt:#B5D4F4;
+  --gn:#2D6E3A;--gn-bg:#EAF4EC;
+  --rd:#C0392B;--rd-bg:#FCEBEA;
+  --am:#9B6000;--am-bg:#FEF3DC;
+  --sb:env(safe-area-inset-bottom,0px);
+  --st:env(safe-area-inset-top,0px);
+}
+html,body{height:100%;overflow:hidden;background:var(--bg);font-family:-apple-system,'Hiragino Sans',sans-serif;}
+#app{display:flex;flex-direction:column;height:100vh;height:100dvh;}
+
+/* ヘッダー */
+#hdr{background:var(--ac);color:white;padding:calc(var(--st) + 10px) 16px 10px;display:flex;align-items:center;gap:10px;flex-shrink:0;}
+#hdr h1{font-size:15px;font-weight:700;flex:1;letter-spacing:-.3px;}
+#hdr p{font-size:10px;opacity:.75;margin-top:1px;}
+.hbtn{background:rgba(255,255,255,.2);border:none;color:white;border-radius:8px;padding:6px 10px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap;}
+.hbtn:active{background:rgba(255,255,255,.35);}
+
+/* ページコンテナ */
+#pages{flex:1;overflow:hidden;position:relative;}
+.pg{position:absolute;inset:0;display:flex;flex-direction:column;overflow:hidden;visibility:hidden;opacity:0;}
+.pg.on{visibility:visible;opacity:1;}
+
+/* 在庫一覧 */
+.srchbar{padding:10px 12px;background:var(--sf);border-bottom:1px solid var(--bd);flex-shrink:0;}
+.srchbar input{width:100%;padding:9px 14px;font-size:16px;border:1px solid var(--bd);border-radius:10px;background:var(--sf2);color:var(--t1);outline:none;font-family:inherit;}
+.srchbar input:focus{border-color:var(--ac);background:#fff;}
+.fscroll{display:flex;gap:6px;padding:8px 12px;overflow-x:auto;flex-shrink:0;background:var(--sf);border-bottom:1px solid var(--bd);-webkit-overflow-scrolling:touch;scrollbar-width:none;}
+.fscroll::-webkit-scrollbar{display:none;}
+.fc{flex-shrink:0;padding:5px 12px;border-radius:20px;font-size:13px;border:1px solid var(--bd);background:var(--sf);color:var(--t2);cursor:pointer;}
+.fc.on{background:var(--ac);color:white;border-color:var(--ac);}
+.istat{display:flex;gap:12px;padding:7px 14px;background:var(--sf2);border-bottom:1px solid var(--bd);font-size:12px;color:var(--t3);flex-shrink:0;}
+.istat strong{color:var(--t1);}
+#inv-list{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:6px;}
+.ic{background:var(--sf);border:1px solid var(--bd);border-radius:12px;padding:12px 14px;margin-bottom:6px;cursor:pointer;}
+.ic:active{background:var(--ac-bg);}
+.ic-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:7px;}
+.ic-name{font-size:14px;font-weight:700;color:var(--t1);line-height:1.3;flex:1;padding-right:8px;}
+.ic-code{font-size:11px;color:var(--t3);margin-top:2px;}
+.qb{font-size:13px;font-weight:700;padding:3px 10px;border-radius:8px;white-space:nowrap;}
+.q-ok{background:var(--gn-bg);color:var(--gn);}
+.q-out{background:var(--rd-bg);color:var(--rd);}
+.ic-tags{display:flex;gap:5px;flex-wrap:wrap;}
+.tg{font-size:11px;padding:2px 8px;border-radius:5px;font-weight:500;}
+.tg-c{background:var(--ac-bg);color:var(--ac);}
+.tg-g{background:var(--sf2);color:var(--t2);}
+.tg-l{background:var(--gn-bg);color:var(--gn);}
+
+/* チャット */
+#chat-msgs{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:12px;display:flex;flex-direction:column;gap:10px;}
+.msg{display:flex;gap:8px;max-width:100%;}
+.msg.u{flex-direction:row-reverse;align-self:flex-end;}
+.av{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0;}
+.av-ai{background:var(--ac);color:white;}
+.av-u{background:var(--sf2);color:var(--t2);border:1px solid var(--bd);}
+.bbl{padding:10px 13px;border-radius:14px;font-size:14px;line-height:1.65;max-width:calc(100% - 40px);border:1px solid var(--bd);background:var(--sf);}
+.msg.u .bbl{background:var(--ac);color:white;border-color:var(--ac);border-radius:14px 14px 4px 14px;}
+.msg.ai .bbl{border-radius:4px 14px 14px 14px;}
+.bbl table{width:100%;border-collapse:collapse;margin-top:8px;font-size:12px;}
+.bbl th{background:var(--sf2);padding:5px 8px;text-align:left;font-size:11px;font-weight:700;color:var(--t2);border-bottom:1px solid var(--bd);}
+.bbl td{padding:5px 8px;border-bottom:1px solid var(--bd);}
+.bbl tr:last-child td{border-bottom:none;}
+.ok{color:var(--gn);font-weight:700;}.out{color:var(--rd);font-weight:700;}
+.schips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;}
+.sc{font-size:12px;padding:5px 11px;border:1px solid var(--ac-lt);border-radius:20px;color:var(--ac);background:var(--ac-bg);cursor:pointer;}
+.sc:active{background:var(--ac);color:white;}
+#undo-bar{display:none;flex-shrink:0;align-items:center;justify-content:space-between;padding:9px 14px;background:var(--am-bg);border-top:1px solid var(--am);font-size:13px;color:var(--am);}
+#undo-bar.show{display:flex;}
+#undo-bar button{font-size:12px;padding:4px 12px;border:1px solid var(--am);border-radius:8px;background:white;color:var(--am);font-weight:700;cursor:pointer;font-family:inherit;}
+#cin-wrap{padding:10px 12px;padding-bottom:calc(10px + var(--sb));background:var(--sf);border-top:1px solid var(--bd);flex-shrink:0;}
+#qbtns{display:flex;gap:6px;overflow-x:auto;margin-bottom:8px;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding-bottom:1px;}
+#qbtns::-webkit-scrollbar{display:none;}
+.qb2{flex-shrink:0;font-size:12px;padding:5px 11px;border:1px solid var(--bd);border-radius:20px;background:var(--sf2);color:var(--t2);cursor:pointer;white-space:nowrap;font-family:inherit;}
+.qb2:active{background:var(--ac-bg);color:var(--ac);}
+#crow{display:flex;gap:8px;align-items:flex-end;}
+#cin{flex:1;font-size:16px;padding:10px 13px;border:1px solid var(--bd);border-radius:12px;resize:none;min-height:44px;max-height:110px;background:var(--sf2);color:var(--t1);outline:none;font-family:inherit;line-height:1.4;}
+#cin:focus{border-color:var(--ac);background:#fff;}
+#sbtn{width:44px;height:44px;border-radius:12px;background:var(--ac);border:none;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;}
+#sbtn:active{background:#174F7A;}
+
+/* 履歴 */
+#hst-stat{display:flex;gap:12px;padding:9px 14px;background:var(--sf2);border-bottom:1px solid var(--bd);font-size:12px;color:var(--t3);flex-shrink:0;}
+#hst-stat strong{color:var(--t1);}
+#hst-list{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:6px;}
+.hc{background:var(--sf);border:1px solid var(--bd);border-radius:12px;padding:11px 13px;margin-bottom:6px;}
+.hc.add{border-left:3px solid var(--gn);}
+.hc.inc{border-left:3px solid var(--ac);}
+.hc.dec{border-left:3px solid var(--am);}
+.hc.set{border-left:3px solid #7C3ABF;}
+.hc.undo{border-left:3px solid var(--t3);}
+.hc-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:5px;}
+.hc-name{font-size:13px;font-weight:700;color:var(--t1);flex:1;padding-right:6px;line-height:1.4;}
+.hc-time{font-size:11px;color:var(--t3);white-space:nowrap;}
+.hc-det{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:12px;}
+.hop{font-size:11px;font-weight:700;padding:2px 7px;border-radius:4px;}
+.add .hop{background:var(--gn-bg);color:var(--gn);}
+.inc .hop{background:var(--ac-bg);color:var(--ac);}
+.dec .hop{background:var(--am-bg);color:var(--am);}
+.set .hop{background:#F0ECFC;color:#5C3D99;}
+.undo .hop{background:var(--sf2);color:var(--t3);}
+.harr{font-size:12px;color:var(--t2);}
+.hundo{margin-top:7px;font-size:12px;padding:5px 12px;border:1px solid var(--bd);border-radius:8px;background:var(--sf2);color:var(--t2);cursor:pointer;font-family:inherit;}
+.hundo:active{background:var(--rd-bg);color:var(--rd);border-color:var(--rd);}
+.hem{text-align:center;padding:60px 20px;color:var(--t3);font-size:14px;}
+
+/* 詳細モーダル */
+#dmodal{position:fixed;inset:0;z-index:300;display:none;align-items:flex-end;background:rgba(0,0,0,.45);}
+#dmodal.open{display:flex;}
+#dbox{background:var(--sf);border-radius:20px 20px 0 0;width:100%;padding:20px 20px calc(16px + var(--sb));max-height:82vh;overflow-y:auto;}
+#dbox h3{font-size:16px;font-weight:700;margin-bottom:14px;line-height:1.3;}
+#dbox table{width:100%;border-collapse:collapse;font-size:14px;margin-bottom:14px;}
+#dbox td{padding:9px 0;border-bottom:1px solid var(--bd);}
+#dbox td:first-child{color:var(--t2);width:75px;font-size:13px;}
+#dbox tr:last-child td{border-bottom:none;}
+.dact{display:flex;gap:8px;margin-bottom:10px;}
+.dact-btn{flex:1;padding:12px;border-radius:11px;border:none;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;}
+.dact-dec{background:var(--am-bg);color:var(--am);}
+.dact-dec:active{background:var(--am);color:white;}
+.dact-inc{background:var(--ac-bg);color:var(--ac);}
+.dact-inc:active{background:var(--ac);color:white;}
+#dclose{width:100%;padding:13px;border:none;border-radius:12px;background:var(--sf2);color:var(--t1);font-size:15px;font-weight:600;cursor:pointer;font-family:inherit;}
+#dclose:active{background:var(--bd);}
+#dqty-row{display:flex;gap:8px;align-items:center;margin-bottom:10px;background:var(--sf2);border-radius:10px;padding:10px 12px;}
+#dqty-row label{font-size:13px;color:var(--t2);flex:1;}
+#dqty-in{width:70px;font-size:18px;font-weight:700;text-align:center;border:1px solid var(--bd);border-radius:8px;padding:5px;background:#fff;font-family:inherit;color:var(--t1);}
+.dqty-apply{padding:7px 14px;border:none;border-radius:8px;background:var(--ac);color:white;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;}
+.dqty-apply:active{background:#174F7A;}
+
+/* ボトムナビ */
+#bnav{display:flex;background:var(--sf);border-top:1px solid var(--bd);padding-bottom:var(--sb);flex-shrink:0;}
+.btab{flex:1;display:flex;flex-direction:column;align-items:center;padding:10px 4px 6px;cursor:pointer;gap:3px;border:none;background:none;font-family:inherit;}
+.btab svg{width:22px;height:22px;}
+.btab span{font-size:10px;font-weight:600;}
+.btab{color:var(--t3);}
+.btab.on{color:var(--ac);}
+
+/* タイピング */
+.dots{display:flex;gap:4px;align-items:center;padding:2px 0;}
+.dot{width:7px;height:7px;background:var(--t3);border-radius:50%;animation:bounce 1.2s infinite;}
+.dot:nth-child(2){animation-delay:.2s;}.dot:nth-child(3){animation-delay:.4s;}
+@keyframes bounce{0%,80%,100%{transform:translateY(0);opacity:.4}40%{transform:translateY(-5px);opacity:1}}
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- ヘッダー -->
+  <div id="hdr">
+    <div style="flex:1">
+      <h1>倉庫塗料在庫確認</h1>
+      <p>Googleスプレッドシート連動</p>
+    </div>
+    <button class="hbtn" onclick="doUndo()" id="undo-hbtn" style="display:none">↩ 戻す</button>
+    <button class="hbtn" onclick="downloadExcel()">
+      <svg viewBox="0 0 24 24" width="12" height="12" fill="white" style="margin-right:3px"><path d="M19 9h-4V3H9v6H5l7 7 7-7zm-8 2V5h2v6h1.17L12 13.17 9.83 11H11zm-6 7h14v2H5z"/></svg>Excel
+    </button>
+  </div>
+
+  <!-- ページ群 -->
+  <div id="pages">
+
+    <!-- 在庫一覧 -->
+    <div class="pg on" id="pg-inv">
+      <div class="srchbar">
+        <input type="search" id="sinput" placeholder="品名・色番号・倉庫で検索..." oninput="filterInv()" autocomplete="off">
+      </div>
+      <div class="fscroll" id="fscroll"></div>
+      <div class="istat" id="istat"></div>
+      <div id="inv-list"></div>
+    </div>
+
+    <!-- チャット -->
+    <div class="pg" id="pg-chat">
+      <div id="chat-msgs">
+        <div class="msg ai">
+          <div class="av av-ai">AI</div>
+          <div class="bbl">
+            こんにちは！在庫を検索・増減できます。<br>例えばこんな感じで話しかけてください：
+            <div class="schips">
+              <span class="sc" onclick="ss('エコフラット60')">エコフラット60</span>
+              <span class="sc" onclick="ss('N-30の在庫')">N-30を検索</span>
+              <span class="sc" onclick="ss('新河岸倉庫の在庫')">新河岸倉庫</span>
+              <span class="sc" onclick="ss('在庫ゼロを教えて')">在庫ゼロ確認</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div id="undo-bar">
+        <span id="undo-msg"></span>
+        <button onclick="doUndo()">↩ 元に戻す</button>
+      </div>
+      <div id="cin-wrap">
+        <div id="qbtns">
+          <button class="qb2" onclick="ss('エコフラット60')">エコフラット60</button>
+          <button class="qb2" onclick="ss('無臭塗料EP')">無臭塗料EP</button>
+          <button class="qb2" onclick="ss('オーデコートGエコ')">オーデコートGエコ</button>
+          <button class="qb2" onclick="ss('3分艶の塗料')">3分艶</button>
+          <button class="qb2" onclick="ss('新河岸倉庫の在庫')">新河岸</button>
+          <button class="qb2" onclick="ss('在庫ゼロを教えて')">在庫ゼロ</button>
+          <button class="qb2" onclick="ss('全体集計')">全体集計</button>
+        </div>
+        <div id="crow">
+          <textarea id="cin" rows="1" placeholder="例: エコフラット60 N-25 を 1缶 減らして" onkeydown="ck(event)" oninput="ar(this)"></textarea>
+          <button id="sbtn" onclick="send()">
+            <svg viewBox="0 0 24 24" fill="white"><path d="M2 21l21-9L2 3v7l15 2-15 2z"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 変更履歴 -->
+    <div class="pg" id="pg-hist">
+      <div id="hst-stat"></div>
+      <div id="hst-list"></div>
+    </div>
+
+  </div>
+
+  <!-- ボトムナビ -->
+  <div id="bnav">
+    <button class="btab on" id="tab-inv" onclick="goTab('inv')">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>
+      <span>在庫一覧</span>
+    </button>
+    <button class="btab" id="tab-chat" onclick="goTab('chat')">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
+      <span>チャット</span>
+    </button>
+    <button class="btab" id="tab-hist" onclick="goTab('hist')">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M13 3a9 9 0 0 0-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42A8.954 8.954 0 0 0 13 21a9 9 0 0 0 0-18zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/></svg>
+      <span id="hist-tab-label">変更履歴</span>
+    </button>
+  </div>
+</div>
+
+<!-- 詳細モーダル -->
+<div id="dmodal">
+  <div id="dbox">
+    <h3 id="d-name"></h3>
+    <table id="d-table"></table>
+    <div id="dqty-row">
+      <label>缶数を変更</label>
+      <input type="number" id="dqty-in" min="0" step="0.1" value="1">
+      <button class="dqty-apply" onclick="applyModal()">更新</button>
+    </div>
+    <div class="dact">
+      <button class="dact-btn dact-dec" onclick="quickChange(-0.5)">－0.5缶</button>
+      <button class="dact-btn dact-dec" onclick="quickChange(-1)">－1缶</button>
+      <button class="dact-btn dact-inc" onclick="quickChange(1)">＋1缶</button>
+      <button class="dact-btn dact-inc" onclick="quickChange(0.5)">＋0.5缶</button>
+    </div>
+    <button id="dclose" onclick="closeModal()">閉じる</button>
+  </div>
+</div>
+
+<script>
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbwZROfoYhg4nF4MfCGi55Ko-WTxnrwAA5ZWscFFY_LvuFKSIDTneWnyTlqMFz9m1Dy2IQ/exec';
+
+let inv = [];
+let hist = [], undoStack = [];
+let activeF = 'すべて', searchQ = '', curTab = 'inv', modalId = null;
+let isLoading = false;
+
+// ===== スプレッドシートAPI =====
+async function loadFromSheet() {
+  showLoading(true);
+  try {
+    const res = await fetch(GAS_URL + '?_=' + Date.now());
+    const json = await res.json();
+    if (json.status === 'ok') {
+      const wasEmpty = inv.length === 0;
+      inv = json.data.map(row => ({
+        ...row,
+        id: Number(row.id),
+        qty: Number(row.qty)
+      }));
+      renderInv();
+      showLoading(false);
+      if(wasEmpty && inv.length > 0){
+        const el = document.getElementById('chat-msgs');
+        if(el) {
+          const d = document.createElement('div');
+          d.className = 'msg ai';
+          d.innerHTML = '<div class="av av-ai">AI</div><div class="bbl">✅ スプレッドシートから <strong>' + inv.length + '件</strong> 読み込みました。検索できます！</div>';
+          el.appendChild(d);
+          el.scrollTop = el.scrollHeight;
+        }
+      }
+    }
+  } catch(e) {
+    showLoading(false);
+    showToast('⚠️ データの読み込みに失敗しました');
+  }
+}
+
+async function saveToSheet(action, payload) {
+  try {
+    const url = GAS_URL + '?action=update&id=' + payload.id + '&qty=' + payload.qty + '&_=' + Date.now();
+    await fetch(url, {method: 'GET', mode: 'cors'});
+  } catch(e) {
+    showToast('⚠️ 保存に失敗しました。通信を確認してください');
+  }
+}
+
+// 30秒ごとに自動更新
+setInterval(loadFromSheet, 30000);
+
+function showLoading(on) {
+  isLoading = on;
+  let el = document.getElementById('loading-bar');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'loading-bar';
+    el.style.cssText = 'position:fixed;top:0;left:0;right:0;height:3px;background:var(--ac-lt);z-index:9999;display:none;';
+    const inner = document.createElement('div');
+    inner.style.cssText = 'height:100%;background:white;width:40%;animation:loading 1s ease-in-out infinite alternate;';
+    el.appendChild(inner);
+    document.body.appendChild(el);
+    const style = document.createElement('style');
+    style.textContent = '@keyframes loading{from{margin-left:0}to{margin-left:60%}}';
+    document.head.appendChild(style);
+  }
+  el.style.display = on ? 'block' : 'none';
+}
+
+function showToast(msg) {
+  let t = document.getElementById('toast');
+  if (!t) {
+    t = document.createElement('div');
+    t.id = 'toast';
+    t.style.cssText = 'position:fixed;bottom:100px;left:50%;transform:translateX(-50%);background:#333;color:white;padding:10px 18px;border-radius:10px;font-size:13px;z-index:9999;display:none;max-width:80%;text-align:center;';
+    document.body.appendChild(t);
+  }
+  t.textContent = msg;
+  t.style.display = 'block';
+  clearTimeout(t._t);
+  t._t = setTimeout(() => t.style.display = 'none', 3000);
+}
+
+
+
+const ALIASES = {'エコフラ':'エコフラット60','オーデ':'オーデコートGエコ','ミッチャク':'ミッチャクロン',
+  'ep-g':'無臭塗料EP-G','epg':'無臭塗料EP-G','ビニレックス':'Hiビニレックスエコ',
+  'クースティック':'クースティックコート','tsシンナー':'TSメタルコート用シンナー','ノンスラ':'ノンスライド'};
+const OPL = {inc:'入庫',dec:'出庫',set:'変更',add:'新規追加',undo:'取消'};
+
+function ra(q){
+  // すでに正式名称が含まれている場合は変換しない
+  const vals = Object.values(ALIASES).map(v=>v.toLowerCase());
+  if(vals.some(v=>q.toLowerCase().includes(v))) return q;
+  const l=q.toLowerCase();
+  for(const[a,r]of Object.entries(ALIASES)){
+    if(l.includes(a.toLowerCase())) return q.replace(new RegExp(a,'gi'),r);
+  }
+  return q;
+}
+function fz(text,q){
+  const t=text.toLowerCase(),s=q.toLowerCase();let ti=0,si=0,sc=0;
+  while(ti<t.length&&si<s.length){if(t[ti]===s[si]){sc++;si++;}ti++;}
+  return si===s.length?sc/t.length:0;
+}
+function ft(){
+  if(!searchQ&&activeF==='すべて') return inv;
+  const r=ra(searchQ).toLowerCase();
+  const rNoSp=r.replace(/\s+/g,'');
+  const base=inv.filter(i=>{
+    const mf=activeF==='すべて'||i.category===activeF;
+    const nm=i.name.toLowerCase();
+    const nmNoSp=nm.replace(/\s+/g,'');
+    const ms=!r||nm.includes(r)||nmNoSp.includes(rNoSp)||
+      i.code.toLowerCase().includes(r)||
+      i.location.toLowerCase().includes(r)||
+      i.gloss.includes(r)||i.category.includes(r);
+    return mf&&ms;
+  });
+  if(base.length||!searchQ) return base;
+  return inv.filter(i=>activeF==='すべて'||i.category===activeF)
+    .map(i=>({i,s:fz(i.name.replace(/\s+/g,''),rNoSp)}))
+    .filter(x=>x.s>0.3).sort((a,b)=>b.s-a.s).map(x=>x.i).slice(0,20);
+}
+function pad(n){return String(n).padStart(2,'0');}
+function fmt(ts){const d=new Date(ts);return `${d.getMonth()+1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;}
+
+// ===== タブ切替 =====
+function goTab(t){
+  curTab=t;
+  ['inv','chat','hist'].forEach(x=>{
+    document.getElementById('pg-'+x).classList.toggle('on',x===t);
+    document.getElementById('tab-'+x).classList.toggle('on',x===t);
+  });
+  if(t==='hist'){ renderHist(); loadHistFromSheet(); }
+  if(t==='chat' && inv.length > 0){
+    const msgs = document.getElementById('chat-msgs');
+    if(msgs && msgs.querySelectorAll('.msg').length <= 1){
+      const d=document.createElement('div');
+      d.className='msg ai';
+      d.innerHTML='<div class="av av-ai">AI</div><div class="bbl">&#x2705; <strong>'+inv.length+'&#20516;&#12398;&#12487;&#12540;&#12479;</strong>&#12434;&#35501;&#12415;&#36796;&#12415;&#28168;&#12415;&#12391;&#12377;&#12290;&#26908;&#32034;&#12391;&#12365;&#12414;&#12377;&#65281;</div>';
+      msgs.appendChild(d);
+      msgs.scrollTop=msgs.scrollHeight;
+    }
+  }
+}
+
+// ===== 在庫一覧 =====
+function renderInv(){
+  const cats=['すべて',...new Set(inv.map(i=>i.category))];
+  document.getElementById('fscroll').innerHTML=cats.map(c=>
+    `<span class="fc${activeF===c?' on':''}" onclick="setF('${c}')">${c}</span>`).join('');
+  const f=ft();
+  const tot=f.reduce((s,i)=>s+i.qty,0).toFixed(1);
+  const out=f.filter(i=>i.qty===0).length;
+  document.getElementById('istat').innerHTML=`<strong>${f.length}件</strong> 合計 <strong>${tot}缶</strong> <span style="color:var(--rd)">在庫なし <strong>${out}件</strong></span>`;
+  const list=document.getElementById('inv-list');
+  if(!f.length){list.innerHTML='<div style="text-align:center;padding:50px 20px;color:var(--t3);font-size:14px">該当なし</div>';return;}
+  list.innerHTML=f.map(item=>{
+    const out=item.qty===0;
+    return `<div class="ic" onclick="openModal(${item.id})">
+      <div class="ic-top">
+        <div><div class="ic-name">${item.name}</div>
+        <div class="ic-code">${item.code||'色番号なし'}${item.volume?' · '+item.volume:''}</div></div>
+        <span class="qb ${out?'q-out':'q-ok'}">${item.qty}缶</span>
+      </div>
+      <div class="ic-tags">
+        <span class="tg tg-c">${item.category}</span>
+        <span class="tg tg-g">${item.gloss}</span>
+        ${item.location?`<span class="tg tg-l">${item.location}</span>`:''}
+      </div></div>`;
+  }).join('');
+}
+function setF(f){activeF=f;renderInv();}
+function filterInv(){searchQ=document.getElementById('sinput').value;renderInv();}
+
+// ===== 詳細モーダル =====
+function openModal(id){
+  modalId=id;
+  const i=inv.find(x=>x.id===id);if(!i)return;
+  document.getElementById('d-name').textContent=i.name+(i.code?' ('+i.code+')':'');
+  document.getElementById('d-table').innerHTML=`
+    ${i.code?`<tr><td>色番号</td><td><b>${i.code}</b></td></tr>`:''}
+    <tr><td>カテゴリ</td><td>${i.category}</td></tr>
+    <tr><td>艶</td><td>${i.gloss}</td></tr>
+    ${i.volume?`<tr><td>容量</td><td>${i.volume}</td></tr>`:''}
+    <tr><td>在庫</td><td><b style="font-size:18px;color:${i.qty===0?'var(--rd)':'var(--gn)'}">${i.qty}缶</b></td></tr>
+    ${i.location?`<tr><td>倉庫</td><td>${i.location}</td></tr>`:''}`;
+  document.getElementById('dqty-in').value=1;
+  document.getElementById('dmodal').classList.add('open');
+}
+function closeModal(){document.getElementById('dmodal').classList.remove('open');modalId=null;}
+document.getElementById('dmodal').addEventListener('click',e=>{if(e.target===document.getElementById('dmodal'))closeModal();});
+
+function quickChange(delta){
+  if(!modalId)return;
+  const idx=inv.findIndex(i=>i.id===modalId);if(idx<0)return;
+  const old=inv[idx].qty;
+  const nq=Math.round(Math.max(0,old+delta)*10)/10;
+  const label=delta<0?`${old}缶 → ${nq}缶 に減らす`:`${old}缶 → ${nq}缶 に増やす`;
+  if(!confirm(`${inv[idx].name}\n${label}\n\nよろしいですか？`))return;
+  inv[idx].qty=nq;
+  const op=delta<0?'dec':'inc';
+  addHist({op,name:inv[idx].name,code:inv[idx].code,oldQty:old,newQty:nq,itemId:modalId,location:inv[idx].location});
+  saveToSheet('update',{id:modalId,qty:nq});
+  closeModal();
+  setTimeout(()=>loadFromSheet(),1000);
+}
+function applyModal(){
+  if(!modalId)return;
+  const v=parseFloat(document.getElementById('dqty-in').value);
+  if(isNaN(v)||v<0)return;
+  const idx=inv.findIndex(i=>i.id===modalId);if(idx<0)return;
+  const old=inv[idx].qty;
+  const nq=Math.round(v*10)/10;
+  if(!confirm(`${inv[idx].name}\n現在 ${old}缶 → ${nq}缶 に変更\n\nよろしいですか？`))return;
+  inv[idx].qty=nq;
+  addHist({op:'set',name:inv[idx].name,code:inv[idx].code,oldQty:old,newQty:nq,itemId:modalId,location:inv[idx].location});
+  saveToSheet('update',{id:modalId,qty:nq});
+  closeModal();
+  setTimeout(()=>loadFromSheet(),1000);
+}
+
+// ===== チャット =====
+function addMsg(role,html){
+  const c=document.getElementById('chat-msgs');
+  const d=document.createElement('div');d.className=`msg ${role}`;
+  const av=role==='ai'?'<div class="av av-ai">AI</div>':'<div class="av av-u">ME</div>';
+  d.innerHTML=`${av}<div class="bbl">${html}</div>`;
+  c.appendChild(d);c.scrollTop=c.scrollHeight;
+}
+function typing(){
+  const c=document.getElementById('chat-msgs');
+  const d=document.createElement('div');d.className='msg ai';d.id='typ';
+  d.innerHTML='<div class="av av-ai">AI</div><div class="bbl"><div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div></div>';
+  c.appendChild(d);c.scrollTop=c.scrollHeight;
+}
+function rmTyping(){const e=document.getElementById('typ');if(e)e.remove();}
+
+function query(q){
+  if(!inv.length) return 'データを読み込み中です。少し待ってから再度お試しください。';
+  const res=ra(q),low=res.toLowerCase();
+  // 在庫ゼロ
+  if(low.includes('在庫切れ')||low.includes('ゼロ')||(low.includes('ない')&&low.includes('商品'))){
+    const out=inv.filter(i=>i.qty===0);
+    if(!out.length)return '在庫ゼロの商品はありません ✅';
+    return `在庫ゼロ：<span class="out">${out.length}件</span><table><tr><th>品名</th><th>色番号</th><th>倉庫</th></tr>${out.map(i=>`<tr><td>${i.name}</td><td>${i.code||'-'}</td><td>${i.location||'-'}</td></tr>`).join('')}</table>`;
+  }
+  // 倉庫
+  for(const[k,l]of[['新河岸','新河岸倉庫'],['西早稲田','西早稲田倉庫'],['埼玉','埼玉倉庫']]){
+    if(low.includes(k)){
+      const items=inv.filter(i=>i.location.includes(k));
+      const tot=items.reduce((s,i)=>s+i.qty,0).toFixed(1);
+      return `${l}：<strong>${items.length}件</strong>（${tot}缶）<table><tr><th>品名</th><th>色番号</th><th>艶</th><th>在庫</th></tr>${items.map(i=>`<tr><td>${i.name}</td><td>${i.code||'-'}</td><td>${i.gloss}</td><td class="${i.qty===0?'out':'ok'}">${i.qty}缶</td></tr>`).join('')}</table>`;
+    }
+  }
+  // 艶
+  for(const[k,v]of[['3分艶','3分艶'],['5分艶','5分艶'],['艶消','艶消し'],['艶あり','艶あり']]){
+    if(low.includes(k)){
+      const items=inv.filter(i=>i.gloss===v);
+      return `${v}：<strong>${items.length}件</strong><table><tr><th>品名</th><th>色番号</th><th>在庫</th></tr>${items.map(i=>`<tr><td>${i.name}</td><td>${i.code||'-'}</td><td class="${i.qty===0?'out':'ok'}">${i.qty}缶</td></tr>`).join('')}</table>`;
+    }
+  }
+  // 全体
+  if(low.includes('全体')||low.includes('集計')||low.includes('合計')){
+    const tot=inv.reduce((s,i)=>s+i.qty,0).toFixed(1);const out=inv.filter(i=>i.qty===0).length;
+    const bc={};inv.forEach(i=>{if(!bc[i.category])bc[i.category]={c:0,q:0};bc[i.category].c++;bc[i.category].q+=i.qty;});
+    return `全体 ${inv.length}件 合計 <strong>${tot}缶</strong> 在庫ゼロ <span class="out">${out}件</span><table><tr><th>カテゴリ</th><th>件数</th><th>缶数</th></tr>${Object.entries(bc).map(([c,v])=>`<tr><td>${c}</td><td>${v.c}</td><td>${v.q.toFixed(1)}</td></tr>`).join('')}</table>`;
+  }
+  // 増減
+  const upd=tryUpdate(q,low);if(upd!==null)return upd;
+  // フリー検索
+  const lowNoSp=low.replace(/\s+/g,'');
+  const found=inv.filter(i=>i.name.toLowerCase().includes(low)||
+    i.name.toLowerCase().replace(/\s+/g,'').includes(lowNoSp)||
+    i.code.toLowerCase().includes(low)||i.category.includes(low));
+  const fz2=found.length?found:inv.map(i=>({i,s:fz(i.name,low)})).filter(x=>x.s>0.25).sort((a,b)=>b.s-a.s).map(x=>x.i).slice(0,12);
+  const wasFz=!found.length&&fz2.length>0;
+  if(fz2.length===1){
+    const i=fz2[0];
+    return `<strong>${i.name}</strong>${i.code?' ('+i.code+')':''}${wasFz?' <span style="font-size:11px;color:var(--t3)">（近い名前）</span>':''}：<br>
+      <b style="font-size:20px;color:${i.qty===0?'var(--rd)':'var(--gn)'}">${i.qty}缶</b> ${i.gloss} ${i.location||''}
+      <div class="schips"><span class="sc" onclick="openModal(${i.id});goTab('inv')">詳細・更新 →</span></div>`;
+  }
+  if(fz2.length>1){
+    const tot=fz2.reduce((s,i)=>s+i.qty,0).toFixed(1);
+    return `${wasFz?'近い商品':'検索結果'}：<strong>${fz2.length}件</strong>（${tot}缶）<table><tr><th>品名</th><th>色番号</th><th>在庫</th></tr>${fz2.map(i=>`<tr onclick="openModal(${i.id});goTab('inv')" style="cursor:pointer"><td>${i.name}</td><td>${i.code||'-'}</td><td class="${i.qty===0?'out':'ok'}">${i.qty}缶</td></tr>`).join('')}</table>`;
+  }
+  return `「${q}」は見つかりませんでした。<div class="schips"><span class="sc" onclick="ss('全体集計')">全体集計</span><span class="sc" onclick="ss('在庫ゼロを教えて')">在庫ゼロ</span></div>`;
+}
+
+function tryUpdate(q,low){
+  const isDec=/減らし|使用|使った|出庫|消費/.test(low);
+  const isInc=/増やし|入庫|補充/.test(low);
+  const isSet=/に変更|にして|にする/.test(low);
+  if(!isDec&&!isInc&&!isSet)return null;
+  const nm=q.match(/([\d.]+)\s*缶/);if(!nm)return null;
+  const delta=parseFloat(nm[1]);
+  const cm=q.match(/\b((?:[A-Z]+-\d+[A-Z]?|\d{2,3}-\d{2,3}[A-Z]?|OC-\d+))\b/i);
+  const code=cm?cm[1].toUpperCase():'';
+  const nkw=q.replace(/[\d.]+缶/g,'').replace(/[をにはがの]/g,' ')
+    .replace(/減らし|増やし|使用|使った|出庫|入庫|補充|変更|にして|にする|消費/g,' ')
+    .replace(/\s+/g,' ').trim().toLowerCase();
+  const kws=nkw.split(' ').filter(k=>k.length>1);
+  if(!kws.length&&!code)return null;
+  // 品名+色番号で絞る
+  let cands=inv.filter(i=>{
+    const nameOk=kws.length===0||kws.some(k=>i.name.toLowerCase().includes(k));
+    const codeOk=!code||i.code.toUpperCase()===code;
+    return nameOk&&codeOk;
+  });
+  // 品名で見つからず色番号だけある場合
+  if(!cands.length&&code) cands=inv.filter(i=>i.code.toUpperCase()===code);
+  // 品名で見つからず色番号もない場合 → fuzzyで再検索
+  if(!cands.length&&kws.length){
+    cands=inv.filter(i=>kws.some(k=>i.name.toLowerCase().includes(k)));
+  }
+  if(!cands.length)return null;
+  if(cands.length>1){
+    return `複数見つかりました。どれですか？<table><tr><th>品名</th><th>色番号</th><th>在庫</th><th></th></tr>${cands.map(i=>`<tr><td>${i.name}</td><td>${i.code||'-'}</td><td>${i.qty}缶</td><td><span class="sc" onclick="applyChange(${i.id},${isSet?delta:(isDec?-delta:delta)},${isSet})">${isSet?delta+'缶':isDec?'-'+delta:'+'+delta}</span></td></tr>`).join('')}</table>`;
+  }
+  return applyChange(cands[0].id, isSet?delta:(isDec?-delta:delta), isSet, true);
+}
+
+function applyChange(id,ch,isSet,ret=false){
+  const idx=inv.findIndex(i=>i.id===id);if(idx<0)return ret?null:void 0;
+  const old=inv[idx].qty;
+  const nq=Math.round((isSet?ch:Math.max(0,old+ch))*10)/10;
+  inv[idx].qty=nq;
+  const op=isSet?'set':ch<0?'dec':'inc';
+  addHist({op,name:inv[idx].name,code:inv[idx].code,oldQty:old,newQty:nq,itemId:id,location:inv[idx].location});
+  saveToSheet('update', {id, qty: nq});
+  setTimeout(()=>loadFromSheet(),1000);
+  renderInv();
+  const arrow=isSet?`${old}缶 → ${nq}缶`:ch<0?`${old}缶 − ${Math.abs(ch)}缶 = ${nq}缶`:`${old}缶 + ${ch}缶 = ${nq}缶`;
+  const msg=`✅ <strong>${inv[idx].name}</strong>${inv[idx].code?' ('+inv[idx].code+')':''} を更新<br><span style="font-size:17px;font-weight:700;color:${nq===0?'var(--rd)':'var(--gn)'}">${arrow}</span><br><span style="font-size:11px;color:var(--t3)">スプレッドシートに保存しました</span><div class="schips"><span class="sc" onclick="doUndo()">↩ 取り消す</span></div>`;
+  if(ret)return msg;
+  addMsg('ai',msg);
+}
+
+function send(){
+  const el=document.getElementById('cin');
+  const t=el.value.trim();if(!t)return;
+  el.value='';el.style.height='';
+  addMsg('user',t);typing();
+  setTimeout(()=>{rmTyping();const r=query(t);if(r)addMsg('ai',r);},500+Math.random()*300);
+}
+function ss(t){document.getElementById('cin').value=t;send();}
+function ck(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send();}}
+function ar(el){el.style.height='auto';el.style.height=Math.min(el.scrollHeight,110)+'px';}
+
+// ===== 履歴 =====
+function addHist(e){
+  undoStack.push({e,snap:JSON.parse(JSON.stringify(inv))});
+  hist.unshift({...e,ts:Date.now()});
+  if(hist.length>200)hist.pop();
+  const ub=document.getElementById('undo-bar');
+  const um=document.getElementById('undo-msg');
+  if(ub&&um){
+    um.textContent=`${OPL[e.op]}：${e.name}${e.code?' ('+e.code+')':''}　${e.oldQty}→${e.newQty}缶`;
+    ub.classList.add('show');clearTimeout(ub._t);ub._t=setTimeout(()=>ub.classList.remove('show'),6000);
+  }
+  const hb=document.getElementById('undo-hbtn');if(hb)hb.style.display='flex';
+  updateHistBadge();
+  if(curTab==='hist')renderHist();
+}
+function doUndo(){
+  if(!undoStack.length)return;
+  const{e,snap}=undoStack.pop();
+  inv.length=0;snap.forEach(i=>inv.push(i));
+  renderInv();
+  hist.unshift({op:'undo',name:e.name,code:e.code,oldQty:e.newQty,newQty:e.oldQty,location:e.location,ts:Date.now()});
+  addMsg('ai',`↩ <strong>${e.name}</strong> を取り消しました。<br><span style="color:var(--gn);font-weight:700">${e.newQty}缶 → ${e.oldQty}缶 に戻しました</span>`);
+  if(!undoStack.length){
+    document.getElementById('undo-hbtn').style.display='none';
+    document.getElementById('undo-bar').classList.remove('show');
+  }
+  updateHistBadge();
+  if(curTab==='hist')renderHist();
+}
+function updateHistBadge(){
+  const lbl=document.getElementById('hist-tab-label');
+  if(lbl)lbl.textContent=hist.length?`履歴(${hist.length})`:'変更履歴';
+}
+function renderHist(){
+  const el=document.getElementById('hst-list');const st=document.getElementById('hst-stat');
+  const inc=hist.filter(h=>h.op==='inc').length,dec=hist.filter(h=>h.op==='dec').length,add=hist.filter(h=>h.op==='add').length;
+  if(st)st.innerHTML=`操作 <strong>${hist.length}件</strong> ｜ 入庫 <strong style="color:var(--ac)">${inc}</strong> 出庫 <strong style="color:var(--am)">${dec}</strong> 追加 <strong style="color:var(--gn)">${add}</strong>`;
+  if(!el)return;
+  if(!hist.length){el.innerHTML='<div class="hem">変更履歴はまだありません。<br>在庫を増減すると記録されます。</div>';return;}
+  el.innerHTML=hist.map((h,i)=>{
+    const arr=h.op==='add'?`新規 ${h.newQty}缶`:`${h.oldQty}缶 → ${h.newQty}缶`;
+    const diff=h.newQty-h.oldQty;
+    const ds=h.op==='add'||h.op==='undo'?'':diff>0?`<span style="color:var(--ac);font-weight:700">+${Math.round(diff*10)/10}缶</span>`:`<span style="color:var(--am);font-weight:700">${Math.round(diff*10)/10}缶</span>`;
+    const canUndo=h.op!=='undo'&&i===0&&undoStack.length>0;
+    return `<div class="hc ${h.op}">
+      <div class="hc-top"><div class="hc-name">${h.name}${h.code?` <span style="font-size:10px;color:var(--t3)">(${h.code})</span>`:''}</div><span class="hc-time">${fmt(h.ts)}</span></div>
+      <div class="hc-det"><span class="hop">${OPL[h.op]||h.op}</span><span class="harr">${arr}</span>${ds}${h.location?`<span style="font-size:11px;background:var(--sf2);padding:1px 6px;border-radius:4px;color:var(--t3)">${h.location}</span>`:''}</div>
+      ${canUndo?`<button class="hundo" onclick="doUndo()">↩ この操作を取り消す</button>`:''}
+    </div>`;
+  }).join('');
+}
+
+function downloadExcel(){
+  const wb=XLSX.utils.book_new();
+  const hdr=['カテゴリ','品名','色番号','艶','容量','在庫缶数','倉庫'];
+  const ws=XLSX.utils.aoa_to_sheet([hdr,...inv.map(i=>[i.category,i.name,i.code,i.gloss,i.volume,i.qty,i.location])]);
+  ws['!cols']=[14,28,12,8,8,10,14].map(w=>({wch:w}));
+  if(hist.length){
+    const hw=['日時','品名','色番号','操作','変更前','変更後','倉庫'];
+    const ws2=XLSX.utils.aoa_to_sheet([hw,...hist.map(h=>[fmt(h.ts),h.name,h.code||'',OPL[h.op]||h.op,h.oldQty,h.newQty,h.location||''])]);
+    ws2['!cols']=[16,28,12,10,8,8,14].map(w=>({wch:w}));
+    XLSX.utils.book_append_sheet(wb,ws2,'変更履歴');
+  }
+  XLSX.utils.book_append_sheet(wb,ws,'在庫一覧');
+  XLSX.writeFile(wb,`塗料在庫_${new Date().toISOString().slice(0,10)}.xlsx`);
+  goTab('chat');addMsg('ai','✅ Excelをダウンロードしました。');
+}
+
+async function loadHistFromSheet() {
+  try {
+    const res = await fetch(GAS_URL + '?action=getHist&_=' + Date.now());
+    const json = await res.json();
+    if(json.status === 'ok' && json.data.length > 0) {
+      const list = document.getElementById('hst-list');
+      const stat = document.getElementById('hst-stat');
+      if(stat) stat.innerHTML = 'スプレッドシート履歴 <strong>' + json.data.length + '件</strong>';
+      if(list) list.innerHTML = json.data.map(h => {
+        const diff = Number(h['差分']) || 0;
+        const opClass = diff > 0 ? 'inc' : diff < 0 ? 'dec' : 'set';
+        const op = diff > 0 ? '入庫' : diff < 0 ? '出庫' : '変更';
+        const dt = h['日時'] ? new Date(h['日時']) : null;
+        const dtStr = dt ? (dt.getMonth()+1) + '/' + dt.getDate() + ' ' + String(dt.getHours()).padStart(2,'0') + ':' + String(dt.getMinutes()).padStart(2,'0') : '';
+        return '<div class="hc ' + opClass + '"><div class="hc-top"><div class="hc-name">' + (h['品名']||'') + (h['色番号']?' <span style="font-size:10px;color:var(--t3)">(' + h['色番号'] + ')</span>':'') + '</div><span class="hc-time">' + dtStr + '</span></div><div class="hc-det"><span class="hop">' + op + '</span><span class="harr">' + h['変更前(缶)'] + '缶 → ' + h['変更後(缶)'] + '缶</span>' + (diff!==0?'<span style="color:'+(diff>0?'var(--ac)':'var(--am)')+';font-weight:700">'+(diff>0?'+':'')+diff+'缶</span>':'') + '</div></div>';
+      }).join('');
+    }
+  } catch(e) {}
+}
+
+loadFromSheet();
+// 30秒ごとに自動更新（他の端末の変更を反映）
+setInterval(() => {
+  if(curTab === 'inv') loadFromSheet();
+}, 30000);
+</script>
+</body>
+</html>
