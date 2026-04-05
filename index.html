@@ -250,15 +250,17 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:-apple-sy
     <h3 id="d-name"></h3>
     <table id="d-table"></table>
     <div id="dqty-row">
-      <label>缶数を変更</label>
-      <input type="number" id="dqty-in" min="0" step="0.1" value="1">
-      <button class="dqty-apply" onclick="applyModal()">更新</button>
+      <label style="font-size:13px;color:var(--t2);flex:1">増減数（例：-1、+2、-0.5）</label>
+      <input type="number" id="dqty-in" step="0.5" value="-1">
+      <button class="dqty-apply" onclick="applyModal()">変更</button>
     </div>
     <div class="dact">
-      <button class="dact-btn dact-dec" onclick="quickChange(-0.5)">－0.5缶</button>
-      <button class="dact-btn dact-dec" onclick="quickChange(-1)">－1缶</button>
-      <button class="dact-btn dact-inc" onclick="quickChange(1)">＋1缶</button>
-      <button class="dact-btn dact-inc" onclick="quickChange(0.5)">＋0.5缶</button>
+      <button class="dact-btn dact-dec" onclick="setDelta(-0.5)">－0.5</button>
+      <button class="dact-btn dact-dec" onclick="setDelta(-1)">－1</button>
+      <button class="dact-btn dact-dec" onclick="setDelta(-2)">－2</button>
+      <button class="dact-btn dact-inc" onclick="setDelta(1)">＋1</button>
+      <button class="dact-btn dact-inc" onclick="setDelta(2)">＋2</button>
+      <button class="dact-btn dact-inc" onclick="setDelta(0.5)">＋0.5</button>
     </div>
     <button id="dclose" onclick="closeModal()">閉じる</button>
   </div>
@@ -461,6 +463,10 @@ function setF(f){activeF=f;renderInv();}
 function filterInv(){searchQ=document.getElementById('sinput').value;renderInv();}
 
 // ===== 詳細モーダル =====
+function setDelta(v){
+  document.getElementById('dqty-in').value = v;
+}
+
 function openModal(id){
   modalId=id;
   const i=inv.find(x=>x.id===id);if(!i)return;
@@ -500,20 +506,22 @@ async function quickChange(delta){
 }
 async function applyModal(){
   if(!modalId)return;
-  const v=parseFloat(document.getElementById('dqty-in').value);
-  if(isNaN(v)||v<0)return;
+  const delta=parseFloat(document.getElementById('dqty-in').value);
+  if(isNaN(delta)||delta===0)return;
   const idx=inv.findIndex(i=>i.id===modalId);if(idx<0)return;
   const old=Math.round(inv[idx].qty*10)/10;
-  const nq=Math.round(v*10)/10;
-  if(!confirm(`${inv[idx].name}\n現在 ${old}缶 → ${nq}缶 に変更\n\nよろしいですか？`))return;
+  const expected=Math.round(Math.max(0,(old*10+delta*10))/10*10)/10;
+  const sign=delta>0?'+':'';
+  if(!confirm(`${inv[idx].name}\n${sign}${delta}缶 → ${old}缶 から ${expected}缶 へ\n\nよろしいですか？`))return;
   showToast('保存中...');
   try {
-    const newQty = await saveToSheet('update',{id:modalId, qty:nq, oldQty:old});
+    const newQty = await saveToSheet('update',{id:modalId, delta, oldQty:old});
     inv[idx].qty = Math.round(newQty*10)/10;
-    addHist({op:'set',name:inv[idx].name,code:inv[idx].code,oldQty:old,newQty:inv[idx].qty,itemId:modalId,location:inv[idx].location});
+    const op=delta<0?'dec':'inc';
+    addHist({op,name:inv[idx].name,code:inv[idx].code,oldQty:old,newQty:inv[idx].qty,itemId:modalId,location:inv[idx].location});
     renderInv();
     closeModal();
-    showToast('✅ 更新しました（' + old + '缶 → ' + inv[idx].qty + '缶）');
+    showToast('✅ ' + old + '缶 → ' + inv[idx].qty + '缶');
   } catch(e) {
     showToast('⚠️ 保存失敗：' + e.message);
   }
