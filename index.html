@@ -211,7 +211,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:-apple-sy
           <button class="qb2" onclick="ss('全体集計')">全体集計</button>
         </div>
         <div id="crow">
-          <textarea id="cin" rows="1" placeholder="例: エコフラット60 N-25 を 1缶 減らして" onkeydown="ck(event)" oninput="ar(this)"></textarea>
+          <textarea id="cin" rows="1" placeholder="例: エコフラット60 N-25 / N-30の在庫 / 新河岸倉庫" onkeydown="ck(event)" oninput="ar(this)"></textarea>
           <button id="sbtn" onclick="send()">
             <svg viewBox="0 0 24 24" fill="white"><path d="M2 21l21-9L2 3v7l15 2-15 2z"/></svg>
           </button>
@@ -265,7 +265,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:-apple-sy
 </div>
 
 <script>
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbyltAOqBn1MatdlYDKtLQfbcLpXvBhuXTOmnojtJk4fH5unH-2zNnMlVjEux5aJ_VVlbw/exec';
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbzzt5XVb-YoiusmqPumwcmou-SNTs0v1gPS0HETVv7EwRCKspJ4pcnSSMGbRudIPueGIA/exec';
 
 let inv = [];
 let hist = [], undoStack = [];
@@ -600,6 +600,8 @@ function query(q){
 }
 
 function tryUpdate(q,low){
+  // チャットは検索専用 - 数量変更は在庫一覧カードから行う
+  return null;
   const isDec=/減らし|使用|使った|出庫|消費/.test(low);
   const isInc=/増やし|入庫|補充/.test(low);
   const isSet=/に変更|にして|にする/.test(low);
